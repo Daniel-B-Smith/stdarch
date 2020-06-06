@@ -194,9 +194,16 @@ pub unsafe fn _mm512_cmpeq_epu64_mask(a: __m512i, b: __m512i) -> __mmask8 {
 /// [Intel's documentation](https://software.intel.com/sites/landingpage/IntrinsicsGuide/#expand=727,1063,4909,1062,1062,1063&text=_mm512_mask_cmpeq_epu64)
 #[inline]
 #[target_feature(enable = "avx512f")]
-#[cfg_attr(test, assert_instr(vpcmp))]
+#[cfg_attr(test, assert_instr(vpcmpfoo, m = 1))]
 pub unsafe fn _mm512_mask_cmpeq_epu64_mask(m: __mmask8, a: __m512i, b: __m512i) -> __mmask8 {
-    _mm512_cmpeq_epu64_mask(a, b) & m
+    // i8 @llvm.x86.avx512.mask.ucmp.q.512(<8 x i64>, <8 x i64>, i32, i8)
+    macro_rules! call {
+        ($imm8:expr) => {
+            vpcmpuq(a.as_i64x8(), b.as_i64x8(), 0, $imm8)
+        };
+    }
+    let r = constify_imm8!(m, call);
+    transmute(r)
 }
 
 /// Compare packed signed 64-bit integers in a and b for less-than, and store the results in a mask vector.
@@ -302,6 +309,13 @@ pub unsafe fn _mm512_cmpeq_epi64_mask(a: __m512i, b: __m512i) -> __mmask8 {
 #[cfg_attr(test, assert_instr(vpcmp))]
 pub unsafe fn _mm512_mask_cmpeq_epi64_mask(m: __mmask8, a: __m512i, b: __m512i) -> __mmask8 {
     _mm512_cmpeq_epi64_mask(a, b) & m
+}
+
+#[allow(improper_ctypes)]
+extern "C" {
+    // i8 @llvm.x86.avx512.mask.ucmp.q.512(<8 x i64>, <8 x i64>, i32, i8)
+    #[link_name = "llvm.x86.avx512.mask.ucmp.q.512"]
+    fn vpcmpuq(a: i64x8, b: i64x8, op: i32, m: i8) -> i8;
 }
 
 #[cfg(test)]
