@@ -6,6 +6,29 @@ use crate::{
 #[cfg(test)]
 use stdarch_test::assert_instr;
 
+/// Function that causes rustc to segfault
+///
+/// [Intel's documentation](https://software.intel.com/sites/landingpage/IntrinsicsGuide/#expand=727,1063,4909,1062,1062,1063&text=_mm512_mask_cmpneq_epi64)
+#[inline]
+#[target_feature(enable = "avx512f")]
+#[cfg_attr(test, assert_instr(vpcmp))]
+pub unsafe fn _mm512_mask_cmp_epi64_mask(m: __mmask8, a: __m512i, b: __m512i, op: i32) -> __mmask8 {
+    macro_rules! call {
+        ($imm4:expr) => {
+            vpcmpuq(a.as_i64x8(), b.as_i64x8(), $imm4, m as i8)
+        };
+    }
+    let r = constify_imm4!(op, call);
+    transmute(r)
+}
+
+#[allow(improper_ctypes)]
+extern "C" {
+    // i8 @llvm.x86.avx512.mask.ucmp.q.512(<8 x i64>, <8 x i64>, i32, i8)
+    #[link_name = "llvm.x86.avx512.mask.ucmp.q.512"]
+    fn vpcmpuq(a: i64x8, b: i64x8, op: i32, m: i8) -> i8;
+}
+
 /// Computes the absolute values of packed 32-bit integers in `a`.
 ///
 /// [Intel's documentation](https://software.intel.com/sites/landingpage/IntrinsicsGuide/#avx512techs=AVX512F&expand=33,34,4990,33&text=_mm512_abs_epi32)
